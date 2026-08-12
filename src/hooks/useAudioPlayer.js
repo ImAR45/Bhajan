@@ -13,6 +13,8 @@ export function useAudioPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isYtReady, setIsYtReady] = useState(false);
 
+  // Transition ref guards against split-second buffering PAUSED events on mobile track skips
+  const isTransitioningRef = useRef(false);
   const ytPlayerRef = useRef(null);
   const ytContainerRef = useRef(null);
   const audioRef = useRef(null);
@@ -29,20 +31,31 @@ export function useAudioPlayer() {
     };
   }, [playlist, currentIndex]);
 
-  // Activate silent audio anchor (keeps mobile Safari/Android background session alive)
+  // Activate silent audio anchor (keeps mobile background session active)
   const activateSilentAudio = useCallback(() => {
     if (silentAudioRef.current) {
       silentAudioRef.current.play().catch(() => {});
     }
   }, []);
 
-  // Next Track (Uses YouTube native nextVideo to bypass mobile autoplay blocks)
+  // Next Track (Uses YouTube native nextVideo + playVideo with transition guard)
   const handleNext = useCallback(() => {
     activateSilentAudio();
     if (mode === "youtube") {
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.nextVideo === 'function') {
-        ytPlayerRef.current.nextVideo();
+      if (ytPlayerRef.current) {
+        isTransitioningRef.current = true;
         setIsPlaying(true);
+
+        if (typeof ytPlayerRef.current.nextVideo === 'function') {
+          ytPlayerRef.current.nextVideo();
+        }
+        if (typeof ytPlayerRef.current.playVideo === 'function') {
+          ytPlayerRef.current.playVideo();
+        }
+
+        setTimeout(() => {
+          isTransitioningRef.current = false;
+        }, 3500);
       }
     } else {
       if (playlist.length === 0) return;
@@ -57,13 +70,24 @@ export function useAudioPlayer() {
     }
   }, [mode, playlist, currentIndex, activateSilentAudio]);
 
-  // Previous Track (Uses YouTube native previousVideo)
+  // Previous Track
   const handlePrev = useCallback(() => {
     activateSilentAudio();
     if (mode === "youtube") {
-      if (ytPlayerRef.current && typeof ytPlayerRef.current.previousVideo === 'function') {
-        ytPlayerRef.current.previousVideo();
+      if (ytPlayerRef.current) {
+        isTransitioningRef.current = true;
         setIsPlaying(true);
+
+        if (typeof ytPlayerRef.current.previousVideo === 'function') {
+          ytPlayerRef.current.previousVideo();
+        }
+        if (typeof ytPlayerRef.current.playVideo === 'function') {
+          ytPlayerRef.current.playVideo();
+        }
+
+        setTimeout(() => {
+          isTransitioningRef.current = false;
+        }, 3500);
       }
     } else {
       if (playlist.length === 0) return;
@@ -89,12 +113,18 @@ export function useAudioPlayer() {
 
     if (mode === "youtube") {
       if (ytPlayerRef.current) {
+        isTransitioningRef.current = true;
         setIsPlaying(true);
+
         if (targetTrack.youtubeId && typeof ytPlayerRef.current.loadVideoById === 'function') {
           ytPlayerRef.current.loadVideoById(targetTrack.youtubeId);
         } else if (typeof ytPlayerRef.current.playVideo === 'function') {
           ytPlayerRef.current.playVideo();
         }
+
+        setTimeout(() => {
+          isTransitioningRef.current = false;
+        }, 3500);
       }
     } else {
       setTimeout(() => {
@@ -134,7 +164,6 @@ export function useAudioPlayer() {
               setIsYtReady(true);
 
               try {
-                // Enable native YouTube playlist shuffle & loop
                 if (typeof event.target.setShuffle === 'function') {
                   event.target.setShuffle(true);
                 }
@@ -182,6 +211,7 @@ export function useAudioPlayer() {
               const state = event.data;
 
               if (state === YT.PlayerState.PLAYING) {
+                isTransitioningRef.current = false;
                 setIsPlaying(true);
                 activateSilentAudio();
 
@@ -229,11 +259,26 @@ export function useAudioPlayer() {
                   console.error("Error syncing state:", e);
                 }
               } else if (state === YT.PlayerState.PAUSED) {
-                setIsPlaying(false);
+                // Ignore split-second buffering PAUSED events during track transitions
+                if (!isTransitioningRef.current) {
+                  setIsPlaying(false);
+                }
               } else if (state === YT.PlayerState.ENDED) {
-                setIsPlaying(false);
+                // Auto-play next track continuously when current song finishes
+                isTransitioningRef.current = true;
+                setIsPlaying(true);
                 if (typeof event.target.nextVideo === 'function') {
                   event.target.nextVideo();
+                }
+                if (typeof event.target.playVideo === 'function') {
+                  event.target.playVideo();
+                }
+                setTimeout(() => {
+                  isTransitioningRef.current = false;
+                }, 3500);
+              } else if (state === YT.PlayerState.BUFFERING) {
+                if (isTransitioningRef.current) {
+                  setIsPlaying(true);
                 }
               }
             }
@@ -248,7 +293,7 @@ export function useAudioPlayer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Time update ticker (500ms for mobile efficiency)
+  // Time update ticker (500ms)
   useEffect(() => {
     let timer;
     if (isPlaying) {
@@ -313,7 +358,7 @@ export function useAudioPlayer() {
     setIsMuted(newVol === 0);
     if (mode === "youtube") {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.setVolume === 'function') {
-        ytPlayerRef.current.setVolume(newVol * 100);
+        ytPlayerRef.target.setVolume(newVol * 100);
       }
     } else if (audioRef.current) {
       audioRef.current.volume = newVol;
