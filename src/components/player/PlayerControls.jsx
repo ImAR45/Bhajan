@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Play, Pause, SkipBack, SkipForward } from 'lucide-react';
 
-export default function PlayerControls({ isPlaying, onTogglePlay, onNext, onPrev }) {
+const PlayerControls = memo(function PlayerControls({ isPlaying, onTogglePlay, onNext, onPrev }) {
   return (
     <div className="flex items-center gap-1 sm:gap-1.5 shrink-0" id="player-controls-container">
       {/* Prev Track */}
@@ -42,4 +42,6 @@ export default function PlayerControls({ isPlaying, onTogglePlay, onNext, onPrev
       </button>
     </div>
   );
-}
+});
+
+export default PlayerControls;

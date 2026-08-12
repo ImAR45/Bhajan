@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { memo } from 'react';
 import { Music } from 'lucide-react';
 
-export default function VinylArt({ coverUrl, title, isPlaying, onTogglePlay }) {
+const VinylArt = memo(function VinylArt({ coverUrl, title, isPlaying, onTogglePlay }) {
   return (
     <div 
       className="relative h-20 w-20 sm:h-24 sm:w-24 shrink-0 cursor-pointer" 
@@ -41,4 +41,6 @@ export default function VinylArt({ coverUrl, title, isPlaying, onTogglePlay }) {
       <div className="pointer-events-none absolute left-1/2 top-1/2 h-3 w-3 sm:h-3.5 sm:w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-black/80 ring-2 ring-white/40 shadow-inner" />
     </div>
   );
-}
+});
+
+export default VinylArt;
