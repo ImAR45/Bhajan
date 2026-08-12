@@ -1,0 +1,26 @@
+# robots.txt
+# Allow all Web Crawlers & AI Search Engines (Google AI Overviews, Gemini, GPTBot, Perplexity)
+
+User-agent: *
+Allow: /
+Disallow: /_next/
+Disallow: /api/
+
+# Explicitly allow AI Search Crawlers for Generative Engine Optimization (GEO)
+User-agent: Google-Extended
+Allow: /
+
+User-agent: GPTBot
+Allow: /
+
+User-agent: PerplexityBot
+Allow: /
+
+User-agent: ClaudeBot
+Allow: /
+
+User-agent: Bytespider
+Allow: /
+
+# Sitemap Location
+Sitemap: /sitemap.xml

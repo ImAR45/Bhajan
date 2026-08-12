@@ -1,0 +1,34 @@
+[
+  {
+    "id": "manual-1",
+    "title": "Achutam Keshvam Krishna Damodaram",
+    "artist": "Divine Chants",
+    "audioUrl": "https://cdn.pixabay.com/download/audio/2022/05/27/audio_1808fbf07a.mp3?filename=meditation-piano-112674.mp3",
+    "coverUrl": "https://images.unsplash.com/photo-1545205597-3d9d02c29597?w=500&q=80",
+    "duration": "3:24"
+  },
+  {
+    "id": "manual-2",
+    "title": "Gayatri Mantra - Sacred Sound",
+    "artist": "Spiritual Vibrations",
+    "audioUrl": "https://cdn.pixabay.com/download/audio/2022/03/10/audio_c8c8a73467.mp3?filename=ambient-piano-amp-strings-10711.mp3",
+    "coverUrl": "https://images.unsplash.com/photo-1506126613408-eca07ce68773?w=500&q=80",
+    "duration": "4:15"
+  },
+  {
+    "id": "manual-3",
+    "title": "Shiv Tandav Stotram - Ambient",
+    "artist": "Maha Deva Soundscapes",
+    "audioUrl": "https://cdn.pixabay.com/download/audio/2021/08/09/audio_8844f2d790.mp3?filename=relaxing-mountains-rivers-streams-11226.mp3",
+    "coverUrl": "https://images.unsplash.com/photo-1518241353330-0f7941c2d9b5?w=500&q=80",
+    "duration": "5:10"
+  },
+  {
+    "id": "manual-4",
+    "title": "Om Namah Shivaya Chanting",
+    "artist": "Peaceful Echoes",
+    "audioUrl": "https://cdn.pixabay.com/download/audio/2022/01/18/audio_d0a13f69d2.mp3?filename=soft-relaxing-meditation-10384.mp3",
+    "coverUrl": "https://images.unsplash.com/photo-1499209974431-9dddcece7f88?w=500&q=80",
+    "duration": "3:52"
+  }
+]
