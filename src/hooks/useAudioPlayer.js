@@ -13,8 +13,6 @@ export function useAudioPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isYtReady, setIsYtReady] = useState(false);
 
-  // Guard flag for track transitions to prevent false PAUSED states during video load
-  const isTransitioningRef = useRef(false);
   const ytPlayerRef = useRef(null);
   const ytContainerRef = useRef(null);
   const audioRef = useRef(null);
@@ -31,12 +29,54 @@ export function useAudioPlayer() {
     };
   }, [playlist, currentIndex]);
 
-  // Activate silent audio anchor (keeps audio session active on mobile)
+  // Activate silent audio anchor (keeps mobile Safari/Android background session alive)
   const activateSilentAudio = useCallback(() => {
     if (silentAudioRef.current) {
       silentAudioRef.current.play().catch(() => {});
     }
   }, []);
+
+  // Next Track (Uses YouTube native nextVideo to bypass mobile autoplay blocks)
+  const handleNext = useCallback(() => {
+    activateSilentAudio();
+    if (mode === "youtube") {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.nextVideo === 'function') {
+        ytPlayerRef.current.nextVideo();
+        setIsPlaying(true);
+      }
+    } else {
+      if (playlist.length === 0) return;
+      const nextIndex = (currentIndex + 1) % playlist.length;
+      setCurrentIndex(nextIndex);
+      setCurrentTime(0);
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+        }
+      }, 100);
+    }
+  }, [mode, playlist, currentIndex, activateSilentAudio]);
+
+  // Previous Track (Uses YouTube native previousVideo)
+  const handlePrev = useCallback(() => {
+    activateSilentAudio();
+    if (mode === "youtube") {
+      if (ytPlayerRef.current && typeof ytPlayerRef.current.previousVideo === 'function') {
+        ytPlayerRef.current.previousVideo();
+        setIsPlaying(true);
+      }
+    } else {
+      if (playlist.length === 0) return;
+      const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+      setCurrentIndex(prevIndex);
+      setCurrentTime(0);
+      setTimeout(() => {
+        if (audioRef.current) {
+          audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
+        }
+      }, 100);
+    }
+  }, [mode, playlist, currentIndex, activateSilentAudio]);
 
   // Play specific track by index
   const playTrackAtIndex = useCallback((index) => {
@@ -49,18 +89,12 @@ export function useAudioPlayer() {
 
     if (mode === "youtube") {
       if (ytPlayerRef.current) {
-        isTransitioningRef.current = true;
         setIsPlaying(true);
-
         if (targetTrack.youtubeId && typeof ytPlayerRef.current.loadVideoById === 'function') {
           ytPlayerRef.current.loadVideoById(targetTrack.youtubeId);
         } else if (typeof ytPlayerRef.current.playVideo === 'function') {
           ytPlayerRef.current.playVideo();
         }
-
-        setTimeout(() => {
-          isTransitioningRef.current = false;
-        }, 3000);
       }
     } else {
       setTimeout(() => {
@@ -70,20 +104,6 @@ export function useAudioPlayer() {
       }, 100);
     }
   }, [mode, playlist, activateSilentAudio]);
-
-  // Next Track
-  const handleNext = useCallback(() => {
-    if (playlist.length === 0) return;
-    const nextIndex = (currentIndex + 1) % playlist.length;
-    playTrackAtIndex(nextIndex);
-  }, [playlist.length, currentIndex, playTrackAtIndex]);
-
-  // Previous Track
-  const handlePrev = useCallback(() => {
-    if (playlist.length === 0) return;
-    const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
-    playTrackAtIndex(prevIndex);
-  }, [playlist.length, currentIndex, playTrackAtIndex]);
 
   // Initialize Engine
   useEffect(() => {
@@ -114,6 +134,14 @@ export function useAudioPlayer() {
               setIsYtReady(true);
 
               try {
+                // Enable native YouTube playlist shuffle & loop
+                if (typeof event.target.setShuffle === 'function') {
+                  event.target.setShuffle(true);
+                }
+                if (typeof event.target.setLoop === 'function') {
+                  event.target.setLoop(true);
+                }
+
                 const rawPlaylist = event.target.getPlaylist() || [];
                 if (rawPlaylist.length > 0) {
                   const initialTracks = rawPlaylist.map((id, idx) => ({
@@ -124,14 +152,8 @@ export function useAudioPlayer() {
                     youtubeId: id
                   }));
 
-                  const shuffledInitial = shuffleArray(initialTracks);
-                  setPlaylist(shuffledInitial);
+                  setPlaylist(initialTracks);
                   setCurrentIndex(0);
-
-                  const firstTrack = shuffledInitial[0];
-                  if (firstTrack && typeof event.target.cueVideoById === 'function') {
-                    event.target.cueVideoById(firstTrack.youtubeId);
-                  }
 
                   if (typeof event.target.setVolume === 'function') {
                     event.target.setVolume(volume * 100);
@@ -139,7 +161,7 @@ export function useAudioPlayer() {
 
                   // Fetch real metadata asynchronously
                   const detailedTracks = await Promise.all(
-                    shuffledInitial.map(async (item) => {
+                    initialTracks.map(async (item) => {
                       const details = await fetchYouTubeTrackDetails(item.youtubeId);
                       return {
                         ...item,
@@ -160,7 +182,6 @@ export function useAudioPlayer() {
               const state = event.data;
 
               if (state === YT.PlayerState.PLAYING) {
-                isTransitioningRef.current = false;
                 setIsPlaying(true);
                 activateSilentAudio();
 
@@ -208,15 +229,11 @@ export function useAudioPlayer() {
                   console.error("Error syncing state:", e);
                 }
               } else if (state === YT.PlayerState.PAUSED) {
-                if (!isTransitioningRef.current) {
-                  setIsPlaying(false);
-                }
+                setIsPlaying(false);
               } else if (state === YT.PlayerState.ENDED) {
                 setIsPlaying(false);
-                handleNext();
-              } else if (state === YT.PlayerState.BUFFERING) {
-                if (isTransitioningRef.current) {
-                  setIsPlaying(true);
+                if (typeof event.target.nextVideo === 'function') {
+                  event.target.nextVideo();
                 }
               }
             }
@@ -231,7 +248,7 @@ export function useAudioPlayer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Time update ticker (500ms)
+  // Time update ticker (500ms for mobile efficiency)
   useEffect(() => {
     let timer;
     if (isPlaying) {
