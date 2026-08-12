@@ -32,7 +32,7 @@ export function useAudioPlayer() {
   // Activate silent audio anchor (keeps mobile background session active)
   const activateSilentAudio = useCallback(() => {
     if (silentAudioRef.current && silentAudioRef.current.paused) {
-      silentAudioRef.current.play().catch(() => {});
+      silentAudioRef.current.play().catch(() => { });
     }
   }, []);
 
@@ -81,7 +81,7 @@ export function useAudioPlayer() {
   useEffect(() => {
     if (mode === "youtube") {
       const playlistId = extractPlaylistId(SITE_CONFIG.youtubePlaylistUrl) || "PLOaruEZedzq_pfQoHBSR_-RE0wVkn_vEV";
-      
+
       loadYouTubeIframeApi().then((YT) => {
         if (!ytContainerRef.current) return;
 
@@ -91,8 +91,8 @@ export function useAudioPlayer() {
           playerVars: {
             listType: 'playlist',
             list: playlistId,
-            autoplay: 0,
-            controls: 0,
+            autoplay: 1,
+            controls: 1,
             disablekb: 1,
             fs: 0,
             rel: 0,
@@ -171,7 +171,7 @@ export function useAudioPlayer() {
       setPlaylist(shuffledManual);
       setCurrentIndex(0);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
   // Time update ticker (Lightweight 500ms ticker)
