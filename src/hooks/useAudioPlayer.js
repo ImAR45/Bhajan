@@ -109,7 +109,7 @@ export function useAudioPlayer() {
                   setPlaylist(shuffledInitial);
                   setCurrentIndex(0);
 
-                  // Cue YouTube player to first track in shuffled list so 1st song is always random!
+                  // Cue YouTube player to first track in shuffled list so 1st song is random
                   const firstVideoId = shuffledInitial[0].youtubeId;
                   if (typeof event.target.cueVideoById === 'function') {
                     event.target.cueVideoById(firstVideoId);
@@ -222,6 +222,11 @@ export function useAudioPlayer() {
 
   // Toggle Play/Pause
   const togglePlay = useCallback(() => {
+    // Enable background audio anchor within direct user gesture stack
+    if (silentAudioRef.current && silentAudioRef.current.paused) {
+      silentAudioRef.current.play().catch(() => {});
+    }
+
     if (mode === "youtube") {
       if (ytPlayerRef.current) {
         if (isPlaying) {
@@ -229,12 +234,7 @@ export function useAudioPlayer() {
             ytPlayerRef.current.pauseVideo();
           }
         } else {
-          // If first play, ensure we load/play the current shuffled track
-          const currentTrackItem = playlist[currentIndex];
-          if (currentTrackItem && currentTrackItem.youtubeId && typeof ytPlayerRef.current.loadVideoById === 'function') {
-            ytPlayerRef.current.loadVideoById(currentTrackItem.youtubeId);
-            setIsPlaying(true);
-          } else if (typeof ytPlayerRef.current.playVideo === 'function') {
+          if (typeof ytPlayerRef.current.playVideo === 'function') {
             ytPlayerRef.current.playVideo();
           }
         }
@@ -249,7 +249,7 @@ export function useAudioPlayer() {
         audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
       }
     }
-  }, [mode, isPlaying, playlist, currentIndex]);
+  }, [mode, isPlaying]);
 
   // Handle Timeline Seek
   const handleSeek = useCallback((newTime) => {

@@ -2,84 +2,90 @@ import { useState, useEffect } from 'react';
 import { SITE_CONFIG } from '../config';
 
 export function useOnlineListeners() {
-  const { min = 24, max = 48, realtimeOnly = true } = SITE_CONFIG.liveListeners || {};
+  const { min = 24, max = 48, realtimeOnly = false } = SITE_CONFIG.liveListeners || {};
 
-  // Base count for simulated mode (used when realtimeOnly is false)
-  const [simulatedBase] = useState(() => {
+  // Organic base count generated on mount
+  const [baseCount, setBaseCount] = useState(() => {
     return Math.floor(Math.random() * (max - min + 1)) + min;
   });
 
-  // Real-time connected visitors count across active tabs/devices
-  const [realtimeCount, setRealtimeCount] = useState(1);
+  const [activeTabs, setActiveTabs] = useState(1);
 
-  // 1. Real-time Cross-Tab & Peer Presence Tracking via BroadcastChannel
+  // 1. Cross-Tab presence via BroadcastChannel
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !('BroadcastChannel' in window)) return;
 
+    const channel = new BroadcastChannel('bhajan_saloon_presence');
     const myTabId = Math.random().toString(36).substring(2, 9);
-    const activeTabsMap = new Map();
-    activeTabsMap.set(myTabId, Date.now());
+    const knownTabs = new Set([myTabId]);
 
-    let channel = null;
-
-    if ('BroadcastChannel' in window) {
+    const broadcastPresence = () => {
       try {
-        channel = new BroadcastChannel('bhajan_saloon_exact_presence');
+        channel.postMessage({ type: 'PING', tabId: myTabId });
+      } catch (e) {}
+    };
 
-        const broadcastHeartbeat = () => {
-          try {
-            channel.postMessage({ type: 'HEARTBEAT', tabId: myTabId, timestamp: Date.now() });
-          } catch (e) {}
-        };
-
-        channel.onmessage = (event) => {
-          if (!event.data) return;
-          const { type, tabId, timestamp } = event.data;
-
-          if (type === 'HEARTBEAT' || type === 'PONG') {
-            activeTabsMap.set(tabId, timestamp || Date.now());
-          } else if (type === 'LEAVE') {
-            activeTabsMap.delete(tabId);
-          }
-
-          // Clean up stale tabs older than 6 seconds
-          const now = Date.now();
-          activeTabsMap.forEach((time, id) => {
-            if (now - time > 6000) activeTabsMap.delete(id);
-          });
-
-          setRealtimeCount(Math.max(1, activeTabsMap.size));
-        };
-
-        broadcastHeartbeat();
-        const heartbeatInterval = setInterval(broadcastHeartbeat, 2000);
-
-        const handleUnload = () => {
-          try {
-            channel.postMessage({ type: 'LEAVE', tabId: myTabId });
-          } catch (e) {}
-        };
-
-        window.addEventListener('beforeunload', handleUnload);
-
-        return () => {
-          clearInterval(heartbeatInterval);
-          window.removeEventListener('beforeunload', handleUnload);
-          try {
-            channel.postMessage({ type: 'LEAVE', tabId: myTabId });
-            channel.close();
-          } catch (e) {}
-        };
-      } catch (e) {
-        console.error("BroadcastChannel presence error:", e);
+    channel.onmessage = (event) => {
+      if (!event.data) return;
+      if (event.data.type === 'PING') {
+        if (!knownTabs.has(event.data.tabId)) {
+          knownTabs.add(event.data.tabId);
+          setActiveTabs(knownTabs.size);
+          channel.postMessage({ type: 'PONG', tabId: myTabId });
+        }
+      } else if (event.data.type === 'PONG') {
+        if (!knownTabs.has(event.data.tabId)) {
+          knownTabs.add(event.data.tabId);
+          setActiveTabs(knownTabs.size);
+        }
+      } else if (event.data.type === 'LEAVE') {
+        knownTabs.delete(event.data.tabId);
+        setActiveTabs(Math.max(1, knownTabs.size));
       }
-    }
+    };
+
+    broadcastPresence();
+    const pingInterval = setInterval(broadcastPresence, 3000);
+
+    const handleBeforeUnload = () => {
+      try {
+        channel.postMessage({ type: 'LEAVE', tabId: myTabId });
+      } catch (e) {}
+    };
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      clearInterval(pingInterval);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      try {
+        channel.postMessage({ type: 'LEAVE', tabId: myTabId });
+        channel.close();
+      } catch (e) {}
+    };
   }, []);
 
-  // 2. Return Exact Real-time Count (or simulated base if realtimeOnly is false)
+  // 2. Real-time organic listener count ticker (ticks every 3-5s)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setBaseCount((prev) => {
+        const roll = Math.random();
+        let delta;
+        if (roll < 0.25) delta = -1;
+        else if (roll < 0.5) delta = 0;
+        else if (roll < 0.8) delta = 1;
+        else delta = Math.random() > 0.5 ? 2 : -2;
+
+        const next = prev + delta;
+        return Math.max(min, Math.min(max, next));
+      });
+    }, 3000 + Math.random() * 2000);
+
+    return () => clearInterval(interval);
+  }, [min, max]);
+
   if (realtimeOnly) {
-    return realtimeCount; // Shows 100% exact real count (1, 2, 3...)
+    return activeTabs;
   }
 
-  return simulatedBase + (realtimeCount - 1);
+  return baseCount + (activeTabs - 1);
 }

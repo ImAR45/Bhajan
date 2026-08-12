@@ -46,14 +46,5 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
         console.error("MediaSession action handlers error:", e);
       }
     }
-
-    // Keep mobile browser audio session alive on lockscreen
-    if (silentAudioRef && silentAudioRef.current) {
-      if (isPlaying) {
-        silentAudioRef.current.play().catch(() => {});
-      } else {
-        silentAudioRef.current.pause();
-      }
-    }
-  }, [currentTrack, isPlaying, mode, ytPlayerRef, audioRef, silentAudioRef, onPrev, onNext]);
+  }, [currentTrack, isPlaying, mode, ytPlayerRef, audioRef, onPrev, onNext]);
 }

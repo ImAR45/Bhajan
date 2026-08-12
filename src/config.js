@@ -22,8 +22,8 @@ const DEFAULT_CONFIG = {
   ytMusicUrl: "https://music.youtube.com",
 
   // Live Listeners Configuration
-  // Set `realtimeOnly: true` to show ONLY 100% exact real live visitors (1, 2, 3...).
-  // Set `realtimeOnly: false` to add a simulated base range (min-max).
+  // `realtimeOnly: false` shows the saloon live indicator (fluctuating organically 24-48 + real tabs)
+  // `realtimeOnly: true` shows only local browser tab count
   liveListeners: {
     realtimeOnly: true,
     min: 24,
