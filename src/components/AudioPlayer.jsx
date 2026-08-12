@@ -36,14 +36,13 @@ export default function AudioPlayer() {
     setIsPlaying
   } = useAudioPlayer();
 
-  // Attach MediaSession API lockscreen controls & background audio anchor
+  // Lock-screen / notification controls (best-effort with YouTube embeds)
   useMediaSession({
     currentTrack,
     isPlaying,
     mode,
     ytPlayerRef,
     audioRef,
-    silentAudioRef,
     onPrev: handlePrev,
     onNext: handleNext
   });

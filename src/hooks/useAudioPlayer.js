@@ -56,6 +56,8 @@ export function useAudioPlayer() {
   const playlistRef = useRef(playlist);
   const currentIndexRef = useRef(currentIndex);
   const isPlayingRef = useRef(isPlaying);
+  // User wants playback to continue across lock/background when the OS allows it
+  const shouldResumeRef = useRef(false);
 
   const mode = SITE_CONFIG.mode || "youtube";
 
@@ -398,6 +400,7 @@ export function useAudioPlayer() {
                   transitionTimerRef.current = null;
                 }
                 clearPlayRetry();
+                shouldResumeRef.current = true;
                 setIsPlaying(true);
                 syncUiToPlayingVideo(event.target);
               } else if (state === YTStates.BUFFERING) {
@@ -417,6 +420,7 @@ export function useAudioPlayer() {
                 }
               } else if (state === YTStates.ENDED) {
                 beginTransition();
+                shouldResumeRef.current = true;
                 setIsPlaying(true);
                 if (typeof event.target.nextVideo === 'function') {
                   event.target.nextVideo();
@@ -469,10 +473,12 @@ export function useAudioPlayer() {
 
       // Use real player state — React isPlaying can be stuck true after a failed skip
       if (actuallyPlaying) {
+        shouldResumeRef.current = false;
         if (typeof player.pauseVideo === 'function') player.pauseVideo();
         setIsPlaying(false);
       } else {
         isTransitioningRef.current = false;
+        shouldResumeRef.current = true;
         if (typeof player.playVideo === 'function') player.playVideo();
         setIsPlaying(true);
       }
@@ -481,13 +487,49 @@ export function useAudioPlayer() {
 
     if (audioRef.current) {
       if (isPlaying) {
+        shouldResumeRef.current = false;
         audioRef.current.pause();
         setIsPlaying(false);
       } else {
+        shouldResumeRef.current = true;
         audioRef.current.play().then(() => setIsPlaying(true)).catch(console.error);
       }
     }
   }, [mode, isPlaying]);
+
+  // Best-effort: when user unlocks / returns to the tab, resume if they hadn't paused
+  useEffect(() => {
+    const tryResume = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (!shouldResumeRef.current) return;
+
+      if (mode === 'youtube' && ytPlayerRef.current) {
+        const states = getYtStates();
+        const state = typeof ytPlayerRef.current.getPlayerState === 'function'
+          ? ytPlayerRef.current.getPlayerState()
+          : null;
+        if (state !== states.PLAYING && state !== states.BUFFERING) {
+          try {
+            ytPlayerRef.current.playVideo();
+          } catch (e) {
+            // ignore
+          }
+        }
+      } else if (mode === 'manual' && audioRef.current?.paused) {
+        audioRef.current.play().catch(() => {});
+      }
+    };
+
+    document.addEventListener('visibilitychange', tryResume);
+    window.addEventListener('pageshow', tryResume);
+    window.addEventListener('focus', tryResume);
+
+    return () => {
+      document.removeEventListener('visibilitychange', tryResume);
+      window.removeEventListener('pageshow', tryResume);
+      window.removeEventListener('focus', tryResume);
+    };
+  }, [mode]);
 
   const handleSeek = useCallback((newTime) => {
     if (mode === "youtube") {
