@@ -2,8 +2,22 @@ import { useEffect, useRef } from 'react';
 import { SITE_CONFIG } from '../config';
 
 export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, audioRef, silentAudioRef, onPrev, onNext }) {
-  // Ref to track if silent audio was started (mobile lock screen anchor)
   const silentAudioStartedRef = useRef(false);
+  const onPrevRef = useRef(onPrev);
+  const onNextRef = useRef(onNext);
+  const modeRef = useRef(mode);
+
+  useEffect(() => {
+    onPrevRef.current = onPrev;
+  }, [onPrev]);
+
+  useEffect(() => {
+    onNextRef.current = onNext;
+  }, [onNext]);
+
+  useEffect(() => {
+    modeRef.current = mode;
+  }, [mode]);
 
   // Keep silent audio alive whenever YouTube is playing (critical for mobile lock screen)
   useEffect(() => {
@@ -27,7 +41,7 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
           album: SITE_CONFIG.title,
           artwork: [
             {
-              src: currentTrack.coverUrl || '/background.png',
+              src: currentTrack.coverUrl || '/background.jpg',
               sizes: '512x512',
               type: 'image/jpeg'
             }
@@ -45,27 +59,27 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
   }, [isPlaying]);
 
-  // Set up action handlers (once on mount)
+  // Set up action handlers once; call through refs so next/prev stay fresh
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
     const handlers = {
       play: () => {
-        if (mode === "youtube" && ytPlayerRef.current && typeof ytPlayerRef.current.playVideo === 'function') {
+        if (modeRef.current === "youtube" && ytPlayerRef.current && typeof ytPlayerRef.current.playVideo === 'function') {
           ytPlayerRef.current.playVideo();
         } else if (audioRef.current) {
           audioRef.current.play().catch(() => {});
         }
       },
       pause: () => {
-        if (mode === "youtube" && ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
+        if (modeRef.current === "youtube" && ytPlayerRef.current && typeof ytPlayerRef.current.pauseVideo === 'function') {
           ytPlayerRef.current.pauseVideo();
         } else if (audioRef.current) {
           audioRef.current.pause();
         }
       },
-      previoustrack: () => onPrev(),
-      nexttrack: () => onNext()
+      previoustrack: () => onPrevRef.current?.(),
+      nexttrack: () => onNextRef.current?.()
     };
 
     for (const [action, handler] of Object.entries(handlers)) {
@@ -83,5 +97,5 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
         } catch (e) {}
       }
     };
-  }, [mode, ytPlayerRef, audioRef, onPrev, onNext]);
+  }, [ytPlayerRef, audioRef]);
 }

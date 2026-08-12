@@ -1,11 +1,52 @@
-import React from 'react';
+import React, { useEffect, useState, memo } from 'react';
 import { formatTime } from '../../utils/youtubeHelper';
 
-export default function Scrubber({ currentTime, duration, onSeek }) {
+/**
+ * Owns its own time polling so the rest of the player dock
+ * does not re-render every tick.
+ */
+const Scrubber = memo(function Scrubber({ isPlaying, mode, currentIndex, ytPlayerRef, audioRef, onSeek }) {
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+
+  useEffect(() => {
+    setCurrentTime(0);
+    setDuration(0);
+  }, [currentIndex]);
+
+  useEffect(() => {
+    let timer;
+
+    const tick = () => {
+      if (mode === "youtube" && ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
+        const curr = ytPlayerRef.current.getCurrentTime() || 0;
+        const dur = typeof ytPlayerRef.current.getDuration === 'function'
+          ? (ytPlayerRef.current.getDuration() || 0)
+          : 0;
+        setCurrentTime(curr);
+        if (dur) setDuration(dur);
+      } else if (audioRef?.current) {
+        setCurrentTime(audioRef.current.currentTime || 0);
+        setDuration(audioRef.current.duration || 0);
+      }
+    };
+
+    // Refresh immediately on play/track changes, then poll lightly
+    tick();
+
+    if (isPlaying) {
+      timer = setInterval(tick, 500);
+    }
+
+    return () => clearInterval(timer);
+  }, [isPlaying, mode, currentIndex, ytPlayerRef, audioRef]);
+
   const progressPercent = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const handleChange = (e) => {
-    onSeek(parseFloat(e.target.value));
+    const next = parseFloat(e.target.value);
+    setCurrentTime(next);
+    onSeek(next);
   };
 
   return (
@@ -47,4 +88,6 @@ export default function Scrubber({ currentTime, duration, onSeek }) {
       </div>
     </div>
   );
-}
+});
+
+export default Scrubber;

@@ -19,8 +19,6 @@ export default function AudioPlayer() {
     currentIndex,
     currentTrack,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isMuted,
     mode,
@@ -87,8 +85,11 @@ export default function AudioPlayer() {
             />
 
             <Scrubber
-              currentTime={currentTime}
-              duration={duration}
+              isPlaying={isPlaying}
+              mode={mode}
+              currentIndex={currentIndex}
+              ytPlayerRef={ytPlayerRef}
+              audioRef={audioRef}
               onSeek={handleSeek}
             />
           </div>

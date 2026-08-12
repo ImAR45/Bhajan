@@ -57,7 +57,7 @@ export default function SEOHead({ currentTrack }) {
     setMetaTag('meta[property="og:description"]', 'content', siteDescription);
     setMetaTag('meta[property="og:type"]', 'content', 'music.playlist');
     setMetaTag('meta[property="og:url"]', 'content', currentUrl);
-    setMetaTag('meta[property="og:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.png`);
+    setMetaTag('meta[property="og:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.jpg`);
     setMetaTag('meta[property="og:image:alt"]', 'content', siteTitle);
     setMetaTag('meta[property="og:locale"]', 'content', 'en_US');
 
@@ -65,7 +65,7 @@ export default function SEOHead({ currentTrack }) {
     setMetaTag('meta[name="twitter:card"]', 'content', 'summary_large_image');
     setMetaTag('meta[name="twitter:title"]', 'content', activeTrackTitle);
     setMetaTag('meta[name="twitter:description"]', 'content', siteDescription);
-    setMetaTag('meta[name="twitter:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.png`);
+    setMetaTag('meta[name="twitter:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.jpg`);
 
     // 5. Rich Multi-Schema JSON-LD Graph (Dynamic relative URLs)
     let scriptTag = document.getElementById('json-ld-schema');

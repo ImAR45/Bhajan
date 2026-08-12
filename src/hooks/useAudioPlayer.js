@@ -1,24 +1,68 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { SITE_CONFIG } from '../config';
 import manualPlaylistData from '../data/manualPlaylist.json';
-import { extractPlaylistId, formatTime, loadYouTubeIframeApi, fetchYouTubeTrackDetails, shuffleArray } from '../utils/youtubeHelper';
+import { extractPlaylistId, loadYouTubeIframeApi, fetchYouTubeTrackDetails, shuffleArray } from '../utils/youtubeHelper';
+
+const METADATA_BATCH_SIZE = 6;
+const TRANSITION_GUARD_MS = 3500;
+
+async function enrichTracksInBatches(tracks, onBatch) {
+  for (let i = 0; i < tracks.length; i += METADATA_BATCH_SIZE) {
+    const slice = tracks.slice(i, i + METADATA_BATCH_SIZE);
+    const enriched = await Promise.all(
+      slice.map(async (item) => {
+        const details = await fetchYouTubeTrackDetails(item.youtubeId);
+        return {
+          ...item,
+          title: details.title || item.title,
+          artist: details.artist || "",
+          coverUrl: details.coverUrl || item.coverUrl
+        };
+      })
+    );
+
+    onBatch(i, enriched);
+
+    // Yield so the UI stays responsive between network bursts
+    await new Promise((resolve) => setTimeout(resolve, 0));
+  }
+}
 
 export function useAudioPlayer() {
   const [playlist, setPlaylist] = useState([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
   const [volume, setVolume] = useState(0.8);
   const [isMuted, setIsMuted] = useState(false);
   const [isYtReady, setIsYtReady] = useState(false);
 
+  // Guards against split-second buffering PAUSED events on mobile track skips
+  const isTransitioningRef = useRef(false);
+  const transitionTimerRef = useRef(null);
   const ytPlayerRef = useRef(null);
   const ytContainerRef = useRef(null);
   const audioRef = useRef(null);
   const silentAudioRef = useRef(null);
+  const volumeRef = useRef(volume);
+
+  // Keep latest values available inside YT callbacks (avoids stale closures)
+  const playlistRef = useRef(playlist);
+  const currentIndexRef = useRef(currentIndex);
+  const playTrackAtIndexRef = useRef(null);
 
   const mode = SITE_CONFIG.mode || "youtube";
+
+  useEffect(() => {
+    playlistRef.current = playlist;
+  }, [playlist]);
+
+  useEffect(() => {
+    currentIndexRef.current = currentIndex;
+  }, [currentIndex]);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
 
   const currentTrack = useMemo(() => {
     return playlist[currentIndex] || {
@@ -29,6 +73,15 @@ export function useAudioPlayer() {
     };
   }, [playlist, currentIndex]);
 
+  const beginTransition = useCallback(() => {
+    isTransitioningRef.current = true;
+    if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+    transitionTimerRef.current = setTimeout(() => {
+      isTransitioningRef.current = false;
+      transitionTimerRef.current = null;
+    }, TRANSITION_GUARD_MS);
+  }, []);
+
   // Activate silent audio anchor (keeps mobile background session active)
   const activateSilentAudio = useCallback(() => {
     if (silentAudioRef.current && silentAudioRef.current.paused) {
@@ -38,19 +91,24 @@ export function useAudioPlayer() {
 
   // Play specific track by index (Instant & Deterministic)
   const playTrackAtIndex = useCallback((index) => {
-    if (!playlist[index]) return;
-    setCurrentIndex(index);
-    setCurrentTime(0);
+    const list = playlistRef.current;
+    if (!list[index]) return;
 
-    const targetTrack = playlist[index];
+    setCurrentIndex(index);
+
+    const targetTrack = list[index];
     activateSilentAudio();
 
     if (mode === "youtube") {
       if (ytPlayerRef.current) {
+        beginTransition();
         setIsPlaying(true);
+
         if (targetTrack.youtubeId && typeof ytPlayerRef.current.loadVideoById === 'function') {
           ytPlayerRef.current.loadVideoById(targetTrack.youtubeId);
-        } else if (typeof ytPlayerRef.current.playVideo === 'function') {
+        }
+        // Explicit play is required on many mobile browsers after loadVideoById
+        if (typeof ytPlayerRef.current.playVideo === 'function') {
           ytPlayerRef.current.playVideo();
         }
       }
@@ -61,53 +119,64 @@ export function useAudioPlayer() {
         }
       }, 100);
     }
-  }, [mode, playlist, activateSilentAudio]);
+  }, [mode, activateSilentAudio, beginTransition]);
+
+  useEffect(() => {
+    playTrackAtIndexRef.current = playTrackAtIndex;
+  }, [playTrackAtIndex]);
 
   // Next Track
   const handleNext = useCallback(() => {
-    if (playlist.length === 0) return;
-    const nextIndex = (currentIndex + 1) % playlist.length;
+    const list = playlistRef.current;
+    if (list.length === 0) return;
+    const nextIndex = (currentIndexRef.current + 1) % list.length;
     playTrackAtIndex(nextIndex);
-  }, [playlist.length, currentIndex, playTrackAtIndex]);
+  }, [playTrackAtIndex]);
 
   // Previous Track
   const handlePrev = useCallback(() => {
-    if (playlist.length === 0) return;
-    const prevIndex = (currentIndex - 1 + playlist.length) % playlist.length;
+    const list = playlistRef.current;
+    if (list.length === 0) return;
+    const prevIndex = (currentIndexRef.current - 1 + list.length) % list.length;
     playTrackAtIndex(prevIndex);
-  }, [playlist.length, currentIndex, playTrackAtIndex]);
+  }, [playTrackAtIndex]);
 
   // Initialize Engine (Clean & Lightweight)
   useEffect(() => {
+    let destroyed = false;
+    let player = null;
+
     if (mode === "youtube") {
       const playlistId = extractPlaylistId(SITE_CONFIG.youtubePlaylistUrl) || "PLOaruEZedzq_pfQoHBSR_-RE0wVkn_vEV";
 
       loadYouTubeIframeApi().then((YT) => {
-        if (!ytContainerRef.current) return;
+        if (destroyed || !ytContainerRef.current) return;
 
-        new YT.Player(ytContainerRef.current, {
+        player = new YT.Player(ytContainerRef.current, {
           height: '0',
           width: '0',
           playerVars: {
             listType: 'playlist',
             list: playlistId,
-            autoplay: 1,
-            controls: 1,
+            autoplay: 0,
+            controls: 0,
             disablekb: 1,
             fs: 0,
             rel: 0,
             modestbranding: 1,
-            playsinline: 1
+            playsinline: 1,
+            enablejsapi: 1
           },
           events: {
             onReady: async (event) => {
+              if (destroyed) return;
               ytPlayerRef.current = event.target;
               setIsYtReady(true);
 
               try {
                 const rawPlaylist = event.target.getPlaylist() || [];
                 if (rawPlaylist.length > 0) {
-                  // 1. Create and shuffle playlist so first track is ALWAYS random
+                  // Create and shuffle playlist so first track is ALWAYS random
                   const initialTracks = rawPlaylist.map((id, idx) => ({
                     id,
                     title: `Track ${idx + 1}`,
@@ -119,48 +188,81 @@ export function useAudioPlayer() {
                   const shuffledInitial = shuffleArray(initialTracks);
                   setPlaylist(shuffledInitial);
                   setCurrentIndex(0);
+                  playlistRef.current = shuffledInitial;
+                  currentIndexRef.current = 0;
 
-                  // 2. Cue the first randomized track
+                  // Cue the first randomized track (no autoplay until user gesture)
                   if (typeof event.target.cueVideoById === 'function') {
                     event.target.cueVideoById(shuffledInitial[0].youtubeId);
                   }
 
                   if (typeof event.target.setVolume === 'function') {
-                    event.target.setVolume(volume * 100);
+                    event.target.setVolume(volumeRef.current * 100);
                   }
 
-                  // 3. Fetch real metadata asynchronously without blocking UI
-                  const detailedTracks = await Promise.all(
-                    shuffledInitial.map(async (item) => {
-                      const details = await fetchYouTubeTrackDetails(item.youtubeId);
-                      return {
-                        ...item,
-                        title: details.title || item.title,
-                        artist: details.artist || "",
-                        coverUrl: details.coverUrl || item.coverUrl
-                      };
-                    })
-                  );
-
-                  setPlaylist(detailedTracks);
+                  // Fetch metadata in small batches to avoid network/UI jank
+                  await enrichTracksInBatches(shuffledInitial, (startIndex, enriched) => {
+                    if (destroyed) return;
+                    setPlaylist((prev) => {
+                      const next = [...prev];
+                      for (let i = 0; i < enriched.length; i++) {
+                        const idx = startIndex + i;
+                        if (next[idx] && next[idx].youtubeId === enriched[i].youtubeId) {
+                          next[idx] = { ...next[idx], ...enriched[i] };
+                        }
+                      }
+                      playlistRef.current = next;
+                      return next;
+                    });
+                  });
                 }
               } catch (err) {
                 console.error("Error initializing YT playlist:", err);
               }
             },
             onStateChange: (event) => {
+              if (destroyed) return;
               const state = event.data;
 
               if (state === YT.PlayerState.PLAYING) {
+                isTransitioningRef.current = false;
+                if (transitionTimerRef.current) {
+                  clearTimeout(transitionTimerRef.current);
+                  transitionTimerRef.current = null;
+                }
                 setIsPlaying(true);
                 activateSilentAudio();
-                const dur = event.target.getDuration();
-                if (dur) setDuration(dur);
               } else if (state === YT.PlayerState.PAUSED) {
-                setIsPlaying(false);
+                // Ignore brief PAUSED blips during loadVideoById / buffering on mobile
+                if (!isTransitioningRef.current) {
+                  setIsPlaying(false);
+                }
               } else if (state === YT.PlayerState.ENDED) {
-                setIsPlaying(false);
-                handleNext();
+                // Advance inside the YT event tick (refs + event.target) for mobile autoplay
+                const list = playlistRef.current;
+                if (list.length === 0) return;
+                const nextIndex = (currentIndexRef.current + 1) % list.length;
+                const nextTrack = list[nextIndex];
+                if (!nextTrack) return;
+
+                currentIndexRef.current = nextIndex;
+                setCurrentIndex(nextIndex);
+                isTransitioningRef.current = true;
+                if (transitionTimerRef.current) clearTimeout(transitionTimerRef.current);
+                transitionTimerRef.current = setTimeout(() => {
+                  isTransitioningRef.current = false;
+                  transitionTimerRef.current = null;
+                }, TRANSITION_GUARD_MS);
+
+                setIsPlaying(true);
+                activateSilentAudio();
+
+                if (nextTrack.youtubeId && typeof event.target.loadVideoById === 'function') {
+                  event.target.loadVideoById(nextTrack.youtubeId);
+                }
+                if (typeof event.target.playVideo === 'function') {
+                  event.target.playVideo();
+                }
               }
             }
           }
@@ -170,28 +272,26 @@ export function useAudioPlayer() {
       const shuffledManual = shuffleArray(manualPlaylistData);
       setPlaylist(shuffledManual);
       setCurrentIndex(0);
+      playlistRef.current = shuffledManual;
+      currentIndexRef.current = 0;
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mode]);
 
-  // Time update ticker (Lightweight 500ms ticker)
-  useEffect(() => {
-    let timer;
-    if (isPlaying) {
-      timer = setInterval(() => {
-        if (mode === "youtube" && ytPlayerRef.current && typeof ytPlayerRef.current.getCurrentTime === 'function') {
-          const curr = ytPlayerRef.current.getCurrentTime() || 0;
-          const dur = typeof ytPlayerRef.current.getDuration === 'function' ? (ytPlayerRef.current.getDuration() || 0) : 0;
-          setCurrentTime(curr);
-          if (dur) setDuration(dur);
-        } else if (audioRef.current) {
-          setCurrentTime(audioRef.current.currentTime || 0);
-          setDuration(audioRef.current.duration || 0);
+    return () => {
+      destroyed = true;
+      if (transitionTimerRef.current) {
+        clearTimeout(transitionTimerRef.current);
+        transitionTimerRef.current = null;
+      }
+      try {
+        if (player && typeof player.destroy === 'function') {
+          player.destroy();
         }
-      }, 500);
-    }
-    return () => clearInterval(timer);
-  }, [isPlaying, mode]);
+      } catch (e) {
+        // ignore destroy races
+      }
+      ytPlayerRef.current = null;
+    };
+  }, [mode, activateSilentAudio]);
 
   // Toggle Play/Pause
   const togglePlay = useCallback(() => {
@@ -223,7 +323,6 @@ export function useAudioPlayer() {
 
   // Handle Timeline Seek
   const handleSeek = useCallback((newTime) => {
-    setCurrentTime(newTime);
     if (mode === "youtube") {
       if (ytPlayerRef.current && typeof ytPlayerRef.current.seekTo === 'function') {
         ytPlayerRef.current.seekTo(newTime, true);
@@ -268,8 +367,6 @@ export function useAudioPlayer() {
     currentIndex,
     currentTrack,
     isPlaying,
-    currentTime,
-    duration,
     volume,
     isMuted,
     isYtReady,
