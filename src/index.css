@@ -11,6 +11,24 @@
   }
 }
 
+/* Must NOT use display:none — iOS/Android block YT playback after track 1 */
+.yt-player-offscreen {
+  position: fixed;
+  width: 240px;
+  height: 135px;
+  left: 0;
+  bottom: 0;
+  opacity: 0.01;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.yt-player-offscreen iframe {
+  width: 240px !important;
+  height: 135px !important;
+}
+
 /* Glassmorphism utilities matching saloon.wtf */
 .glass-panel {
   background: rgba(255, 255, 255, 0.08);

@@ -2,7 +2,6 @@ import { useEffect, useRef } from 'react';
 import { SITE_CONFIG } from '../config';
 
 export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, audioRef, silentAudioRef, onPrev, onNext }) {
-  const silentAudioStartedRef = useRef(false);
   const onPrevRef = useRef(onPrev);
   const onNextRef = useRef(onNext);
   const modeRef = useRef(mode);
@@ -19,17 +18,14 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
     modeRef.current = mode;
   }, [mode]);
 
-  // Keep silent audio alive whenever YouTube is playing (critical for mobile lock screen)
+  // Silent audio only for manual HTML5 mode — it steals the mobile gesture from YouTube
   useEffect(() => {
-    if (isPlaying && silentAudioRef.current) {
-      if (silentAudioRef.current.paused) {
-        silentAudioRef.current.play().catch(() => {});
-      }
-      silentAudioStartedRef.current = true;
+    if (mode !== 'manual') return;
+    if (isPlaying && silentAudioRef.current?.paused) {
+      silentAudioRef.current.play().catch(() => {});
     }
-  }, [isPlaying, silentAudioRef]);
+  }, [isPlaying, silentAudioRef, mode]);
 
-  // Update MediaSession metadata when track changes
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
@@ -53,13 +49,11 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
     }
   }, [currentTrack]);
 
-  // Update playback state
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
     navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
   }, [isPlaying]);
 
-  // Set up action handlers once; call through refs so next/prev stay fresh
   useEffect(() => {
     if (!('mediaSession' in navigator)) return;
 
