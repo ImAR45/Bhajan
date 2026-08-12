@@ -6,12 +6,13 @@ export default function AudioEngineHidden({ ytContainerRef, audioRef, silentAudi
       {/* YouTube IFrame API Slot */}
       <div ref={ytContainerRef} id="yt-player-slot" />
 
-      {/* Mobile Lockscreen Audio Session Anchor */}
+      {/* Mobile Lockscreen Background Audio Session Anchor */}
       <audio
         ref={silentAudioRef}
         loop
         playsInline
-        src="data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA="
+        preload="auto"
+        src="data:audio/wav;base64,UklGRjIAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA="
       />
 
       {/* HTML5 Audio Player for Manual Mode */}

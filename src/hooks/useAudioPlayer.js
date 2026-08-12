@@ -13,15 +13,12 @@ export function useAudioPlayer() {
   const [isMuted, setIsMuted] = useState(false);
   const [isYtReady, setIsYtReady] = useState(false);
 
+  // Guard flag for track transitions to prevent false PAUSED states during video load
+  const isTransitioningRef = useRef(false);
   const ytPlayerRef = useRef(null);
   const ytContainerRef = useRef(null);
   const audioRef = useRef(null);
   const silentAudioRef = useRef(null);
-
-  // Tracks whether we intentionally triggered a track change (prevents false PAUSED)
-  const isTransitioningRef = useRef(false);
-  // Tracks whether user has initiated first play (for mobile gesture gating)
-  const hasUserPlayedRef = useRef(false);
 
   const mode = SITE_CONFIG.mode || "youtube";
 
@@ -34,9 +31,9 @@ export function useAudioPlayer() {
     };
   }, [playlist, currentIndex]);
 
-  // Activate silent audio anchor (keeps audio session alive for lock screen)
+  // Activate silent audio anchor (keeps audio session active on mobile)
   const activateSilentAudio = useCallback(() => {
-    if (silentAudioRef.current && silentAudioRef.current.paused) {
+    if (silentAudioRef.current) {
       silentAudioRef.current.play().catch(() => {});
     }
   }, []);
@@ -48,20 +45,19 @@ export function useAudioPlayer() {
     setCurrentTime(0);
 
     const targetTrack = playlist[index];
+    activateSilentAudio();
 
     if (mode === "youtube") {
       if (ytPlayerRef.current) {
-        // Mark as transitioning so onStateChange doesn't falsely set isPlaying=false
         isTransitioningRef.current = true;
-        setIsPlaying(true); // Optimistic UI update
+        setIsPlaying(true);
 
         if (targetTrack.youtubeId && typeof ytPlayerRef.current.loadVideoById === 'function') {
           ytPlayerRef.current.loadVideoById(targetTrack.youtubeId);
-        } else if (typeof ytPlayerRef.current.playVideoAt === 'function') {
-          ytPlayerRef.current.playVideoAt(index);
+        } else if (typeof ytPlayerRef.current.playVideo === 'function') {
+          ytPlayerRef.current.playVideo();
         }
 
-        // Clear transitioning flag after a reasonable buffer time
         setTimeout(() => {
           isTransitioningRef.current = false;
         }, 3000);
@@ -73,7 +69,7 @@ export function useAudioPlayer() {
         }
       }, 100);
     }
-  }, [mode, playlist]);
+  }, [mode, playlist, activateSilentAudio]);
 
   // Next Track
   const handleNext = useCallback(() => {
@@ -109,7 +105,8 @@ export function useAudioPlayer() {
             fs: 0,
             rel: 0,
             modestbranding: 1,
-            playsinline: 1 // Critical for iOS inline playback
+            playsinline: 1,
+            enablejsapi: 1
           },
           events: {
             onReady: async (event) => {
@@ -119,27 +116,28 @@ export function useAudioPlayer() {
               try {
                 const rawPlaylist = event.target.getPlaylist() || [];
                 if (rawPlaylist.length > 0) {
-                  const shuffledInitial = shuffleArray(rawPlaylist.map((id, idx) => ({
+                  const initialTracks = rawPlaylist.map((id, idx) => ({
                     id,
                     title: `Track ${idx + 1}`,
                     artist: "",
                     coverUrl: `https://img.youtube.com/vi/${id}/hqdefault.jpg`,
                     youtubeId: id
-                  })));
+                  }));
 
+                  const shuffledInitial = shuffleArray(initialTracks);
                   setPlaylist(shuffledInitial);
                   setCurrentIndex(0);
 
-                  const firstVideoId = shuffledInitial[0].youtubeId;
-                  if (typeof event.target.cueVideoById === 'function') {
-                    event.target.cueVideoById(firstVideoId);
+                  const firstTrack = shuffledInitial[0];
+                  if (firstTrack && typeof event.target.cueVideoById === 'function') {
+                    event.target.cueVideoById(firstTrack.youtubeId);
                   }
 
                   if (typeof event.target.setVolume === 'function') {
                     event.target.setVolume(volume * 100);
                   }
 
-                  // Fetch real metadata asynchronously (batch with concurrency limit)
+                  // Fetch real metadata asynchronously
                   const detailedTracks = await Promise.all(
                     shuffledInitial.map(async (item) => {
                       const details = await fetchYouTubeTrackDetails(item.youtubeId);
@@ -164,8 +162,6 @@ export function useAudioPlayer() {
               if (state === YT.PlayerState.PLAYING) {
                 isTransitioningRef.current = false;
                 setIsPlaying(true);
-
-                // Keep silent audio alive for lock screen
                 activateSilentAudio();
 
                 try {
@@ -209,11 +205,9 @@ export function useAudioPlayer() {
                   }
                   if (dur) setDuration(dur);
                 } catch (e) {
-                  console.error("Error syncing:", e);
+                  console.error("Error syncing state:", e);
                 }
               } else if (state === YT.PlayerState.PAUSED) {
-                // ONLY set isPlaying=false if we are NOT in a track transition
-                // Mobile browsers fire brief PAUSED during loadVideoById buffering
                 if (!isTransitioningRef.current) {
                   setIsPlaying(false);
                 }
@@ -221,7 +215,6 @@ export function useAudioPlayer() {
                 setIsPlaying(false);
                 handleNext();
               } else if (state === YT.PlayerState.BUFFERING) {
-                // During buffering after loadVideoById, keep isPlaying true
                 if (isTransitioningRef.current) {
                   setIsPlaying(true);
                 }
@@ -238,7 +231,7 @@ export function useAudioPlayer() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode]);
 
-  // Time update ticker (reduced to 500ms for better performance)
+  // Time update ticker (500ms)
   useEffect(() => {
     let timer;
     if (isPlaying) {
@@ -259,11 +252,7 @@ export function useAudioPlayer() {
 
   // Toggle Play/Pause
   const togglePlay = useCallback(() => {
-    // Start silent audio anchor on first user gesture (critical for mobile lock screen)
-    if (!hasUserPlayedRef.current) {
-      hasUserPlayedRef.current = true;
-      activateSilentAudio();
-    }
+    activateSilentAudio();
 
     if (mode === "youtube") {
       if (ytPlayerRef.current) {

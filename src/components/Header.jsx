@@ -1,30 +1,14 @@
 import React from 'react';
 import { SITE_CONFIG } from '../config';
-import { useOnlineListeners } from '../hooks/useOnlineListeners';
 import { useLiveClock } from '../hooks/useLiveClock';
 
 export default function Header() {
-  const onlineCount = useOnlineListeners();
   const currentTime = useLiveClock();
 
   return (
     <header className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between p-4 sm:p-6 pointer-events-none">
-      {/* Top Left: Live Listeners Pill + Clock */}
+      {/* Top Left: Live Clock */}
       <div className="pointer-events-auto flex items-center gap-2.5">
-        {/* Live Online Badge */}
-        <div 
-          id="live-listeners-badge"
-          className="flex items-center gap-2 glass-pill px-3.5 py-1.5 rounded-full text-xs sm:text-sm font-medium text-white drop-shadow-md"
-          aria-live="polite"
-        >
-          <span className="relative flex h-2.5 w-2.5">
-            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-            <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.9)]" />
-          </span>
-          <span className="tabular-nums font-semibold">{onlineCount}</span>
-          <span className="text-white/70">online</span>
-        </div>
-
         {/* Current Time Display */}
         <div
           id="current-time-display"
