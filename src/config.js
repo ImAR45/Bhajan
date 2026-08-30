@@ -16,7 +16,7 @@ const DEFAULT_CONFIG = {
 
   // "youtube" or "manual"
   mode: "youtube",
-  youtubePlaylistUrl: "https://music.youtube.com/playlist?list=PL9V5reAom5EpJ0oxRtEThi26vtY8Fxled",
+  youtubePlaylistUrl: "https://www.youtube.com/playlist?list=PLQsSpm2cRLsA",
 
   spotifyUrl: "https://open.spotify.com",
   ytMusicUrl: "https://music.youtube.com",
