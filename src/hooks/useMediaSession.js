@@ -35,14 +35,14 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
           album: SITE_CONFIG.title,
           artwork: [
             {
-              src: currentTrack.coverUrl || '/background.jpg',
+              src: currentTrack.coverUrl || '/background.png',
               sizes: '512x512',
-              type: 'image/jpeg'
+              type: 'image/png'
             },
             {
-              src: currentTrack.coverUrl || '/background.jpg',
+              src: currentTrack.coverUrl || '/background.png',
               sizes: '256x256',
-              type: 'image/jpeg'
+              type: 'image/png'
             }
           ]
         });
@@ -64,7 +64,7 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
       if (modeRef.current === "youtube" && ytPlayerRef.current?.playVideo) {
         ytPlayerRef.current.playVideo();
       } else if (audioRef.current) {
-        audioRef.current.play().catch(() => {});
+        audioRef.current.play().catch(() => { });
       }
     };
 
@@ -96,7 +96,7 @@ export function useMediaSession({ currentTrack, isPlaying, mode, ytPlayerRef, au
       for (const action of Object.keys(handlers)) {
         try {
           navigator.mediaSession.setActionHandler(action, null);
-        } catch (e) {}
+        } catch (e) { }
       }
     };
   }, [ytPlayerRef, audioRef]);

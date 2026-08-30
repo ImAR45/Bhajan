@@ -516,7 +516,7 @@ export function useAudioPlayer() {
           }
         }
       } else if (mode === 'manual' && audioRef.current?.paused) {
-        audioRef.current.play().catch(() => {});
+        audioRef.current.play().catch(() => { });
       }
     };
 

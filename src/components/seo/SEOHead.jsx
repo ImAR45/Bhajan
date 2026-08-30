@@ -5,8 +5,8 @@ export default function SEOHead({ currentTrack }) {
   const siteTitle = `${SITE_CONFIG.title} — ${SITE_CONFIG.subtitle}`;
   const siteDescription = `${SITE_CONFIG.title} — Listen to divine bhajans, sacred chants, and Indian devotional music in an ultra-sleek glassmorphic audio player. Free 24/7 continuous music streaming.`;
 
-  const activeTrackTitle = currentTrack?.title 
-    ? `${currentTrack.title} | ${SITE_CONFIG.title}` 
+  const activeTrackTitle = currentTrack?.title
+    ? `${currentTrack.title} | ${SITE_CONFIG.title}`
     : siteTitle;
 
   useEffect(() => {
@@ -57,7 +57,7 @@ export default function SEOHead({ currentTrack }) {
     setMetaTag('meta[property="og:description"]', 'content', siteDescription);
     setMetaTag('meta[property="og:type"]', 'content', 'music.playlist');
     setMetaTag('meta[property="og:url"]', 'content', currentUrl);
-    setMetaTag('meta[property="og:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.jpg`);
+    setMetaTag('meta[property="og:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.png`);
     setMetaTag('meta[property="og:image:alt"]', 'content', siteTitle);
     setMetaTag('meta[property="og:locale"]', 'content', 'en_US');
 
@@ -65,7 +65,7 @@ export default function SEOHead({ currentTrack }) {
     setMetaTag('meta[name="twitter:card"]', 'content', 'summary_large_image');
     setMetaTag('meta[name="twitter:title"]', 'content', activeTrackTitle);
     setMetaTag('meta[name="twitter:description"]', 'content', siteDescription);
-    setMetaTag('meta[name="twitter:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.jpg`);
+    setMetaTag('meta[name="twitter:image"]', 'content', currentTrack?.coverUrl || `${originUrl}/background.png`);
 
     // 5. Rich Multi-Schema JSON-LD Graph (Dynamic relative URLs)
     let scriptTag = document.getElementById('json-ld-schema');

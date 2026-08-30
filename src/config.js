@@ -12,7 +12,7 @@
 const DEFAULT_CONFIG = {
   title: "BHANJAN",
   subtitle: "Divine Melodies & Sacred Sounds",
-  backgroundImage: "/background.jpg",
+  backgroundImage: "/background.png",
 
   // "youtube" or "manual"
   mode: "youtube",
